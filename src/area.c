@@ -119,13 +119,24 @@ void draw_area() {
     }
 
     /* Calculate top_y and top_x for area */
-    ssize_t top_y = 0, top_x = 0;
+    ssize_t top_y = 0, top_x = 0, camera = 2;
     if (players_len > 0) {
 #define AREA (windows[W_AREA])
 #define ME (players[player_self])
-        top_y = ME.y - AREA.max_y / 2;
-        top_x = ME.x - AREA.max_x / 2;
+        if (camera == 1) {
+            // Centre view
+            top_y = ME.y - AREA.max_y / 2;
+            top_x = ME.x - AREA.max_x / 2;
+        } else if (camera == 2) {
+            // Part-screen movement
+            // TODO implement scrolloff
+            top_y = (ME.y / AREA.max_y) * AREA.max_y;
+            top_x = (ME.x / AREA.max_x) * AREA.max_x;
+        } else {
+            // Another view
+        }
 
+        // Corrections
         if (top_y <  0) top_y = 0;
         if (top_x <  0) top_x = 0;
         if (top_y >= HEIGHT - AREA.max_y) top_y =
