@@ -3,11 +3,12 @@
 #include "gen_underground.h"
 #include "gen_dungeon.h"
 
-extern struct dg_gen_part xbone_room;
-extern struct dg_gen_part stairwell;
-extern struct dg_gen_part simple_room;
-extern struct dg_gen_part column_room;
+extern dg_gen_part_t xbone_room;
+extern dg_gen_part_t stairwell;
+extern dg_gen_part_t simple_room;
+extern dg_gen_part_t column_room;
+extern dg_gen_part_t entrance_room;
 
-struct dg_piece* simple_room_gen(struct level* l, struct dg_gen_part *p, struct coords a, dir_t dir, struct dg_list * pieces);
-void simple_room_build(struct level* l, struct dg_piece* p, struct dg_list* pieces, struct dg_list* build_order, struct dg_parts_array* parts);
-void column_room_build(struct level* l, struct dg_piece* p, struct dg_list* pieces, struct dg_list* build_order, struct dg_parts_array* parts);
+dg_piece_t* simple_room_gen(level_t* l, dg_gen_part_t *p, coords_t a, dir_t dir, dg_list_t *pieces);
+void simple_room_build(level_t* l, dg_piece_t* p, dg_list_t *pieces, dg_list_t *build_order, dg_parts_array_t *parts);
+void column_room_build(level_t* l, dg_piece_t* p, dg_list_t *pieces, dg_list_t *build_order, dg_parts_array_t *parts);

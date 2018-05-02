@@ -2,8 +2,8 @@
 #include <stdlib.h>
 
 /* static dungeon part examples */
-struct dg_gen_part
-xbone_room = (struct dg_gen_part) {
+dg_gen_part_t
+xbone_room = (dg_gen_part_t) {
 	.width = 13, .height = 11, .depth = 1,	/* Dimensions                     */
 	.data = (char *[]) {					/* Map, array of c-string rows    */
 	/* Z-level = 0 */						/* as if piece is directed NORTH  */
@@ -22,7 +22,7 @@ xbone_room = (struct dg_gen_part) {
 	.class = GEN_ROOM, 						/* Room class					  */
 	.gen_type = GEN_STATIC,
 	.weight = 3,							/* Generation weight              */
-	.conns = (struct coords[]) {			/* Array of 3d coordinates of     */
+	.conns = (coords_t[]) {					/* Array of 3d coordinates of     */
 		{ 0,  5, 0},						/* possible connection points     */
 		{12,  5, 0},						
 		{ 2,  0, 0},						
@@ -34,8 +34,8 @@ xbone_room = (struct dg_gen_part) {
 	.gen_fptr = NULL, .build_fptr = NULL	/* Unused dynamic gen fptrs */
 };
 
-struct dg_gen_part
-stairwell = (struct dg_gen_part) {
+dg_gen_part_t
+stairwell = (dg_gen_part_t) {
 	.width = 7, .height = 5, .depth = 2,
 	.data = (char *[]) {
 	/* Z-level = 0 */
@@ -53,7 +53,7 @@ stairwell = (struct dg_gen_part) {
 	.class = GEN_ROOM,
 	.gen_type = GEN_STATIC,
 	.weight = 4,
-	.conns = (struct coords[]) {
+	.conns = (coords_t[]) {
 		{ 3, 0, 0 },
 		{ 1, 4, 0 },
 		{ 3, 0, 1 },
@@ -64,42 +64,81 @@ stairwell = (struct dg_gen_part) {
 };
 
 /* dynamic dungeon part example */
-struct dg_gen_part
-simple_room = (struct dg_gen_part) {
+dg_gen_part_t
+simple_room = (dg_gen_part_t) {
 	.data = NULL,							/* No predetermined map */
 	.class = GEN_ROOM,
 	.gen_type = GEN_DYNAMIC,
-	.weight = 10,
+	.weight = 40,
 	.conns = NULL,							/* No predetermined connections */
 	.max_conns = 0,
 	.max_count = DG_ANY_COUNT,
 	.gen_fptr = &simple_room_gen,			/* Function ptrs for generation */
-	.build_fptr = &simple_room_build		/* and building */
-};
+	.build_fptr = &simple_room_build,		/* and building */
+	.flags = DG_PART_FLAGS_ENTRANCE			/* Capable of being the entrance */
+};											/* to the dungeon */
 
-struct dg_gen_part
-column_room = (struct dg_gen_part) {
+dg_gen_part_t
+column_room = (dg_gen_part_t) {
 	.class = GEN_ROOM,
 	.gen_type = GEN_DYNAMIC,
 	.weight = 10,
 	.max_count = DG_ANY_COUNT,
 	.gen_fptr = &simple_room_gen,
-	.build_fptr = &column_room_build
+	.build_fptr = &column_room_build,
+	.flags = DG_PART_FLAGS_ENTRANCE
+};
+
+dg_gen_part_t
+entrance_room = (dg_gen_part_t) {
+	.width = 7, .height = 7, .depth = 1,
+	.data = (char*[]) {
+		"#######",
+		"##...##",
+		"#.....#",
+		"#.....#",
+		"#.....#",
+		"##...##",
+		"#######" },
+	.class = GEN_ROOM,
+	.gen_type = GEN_STATIC,
+	.weight = 1,
+	.conns = (coords_t[]) {
+		{ 3, 0, 0 },
+		{ 0, 3, 0 },
+		{ 6, 3, 0 },
+		{ 3, 6, 0 },
+		{ 3, 3, 0 } },
+	.max_conns = 5,
+	.max_count = DG_ANY_COUNT,
+	.gen_fptr = NULL, .build_fptr = NULL
 };
 
 
-struct dg_piece* simple_room_gen(struct level* l, struct dg_gen_part *p,
-		struct coords a, dir_t dir, struct dg_list * pieces)
-{
+dg_piece_t* simple_room_gen(level_t* l, dg_gen_part_t *p, coords_t a, dir_t dir,
+		dg_list_t * pieces) {
 	int w = rand() % 9 + 5;
 	int h = rand() % 9 + 5;
+	coords_t smc;
 
-	/* piece internal coordinates of the tile used as connection point */
-	struct coords smc = (struct coords) {
-		rand() % (w-2) + 1,
-		h - 1,
-		0
-	};
+
+	if (dir == UP || dir == DOWN) {
+		smc = (coords_t) {
+			rand() % (w-2) + 1,
+			rand() % (h-2) + 1,
+			0
+		};
+
+		dir = rand() % 4;
+	}
+	else {
+		/* piece internal coordinates of the tile used as connection point */
+		smc = (coords_t) {
+			rand() % (w-2) + 1,
+			h - 1,
+			0
+		};
+	}
 
 	/* calculating actual level coordinates of top-left corner */
 	struct coords cc = sm2l(smc, 
@@ -116,21 +155,20 @@ struct dg_piece* simple_room_gen(struct level* l, struct dg_gen_part *p,
 		a.z
 	};
 
-	if(!VALID_COORDS(l, a) || !VALID_COORDS(l, b)) return NULL;
+	if (!VALID_COORDS(l, a) || !VALID_COORDS(l, b)) return NULL;
 
 	/* success if we can place it on the level */
-	if(intersected_piece(l, a, b, pieces) == NULL) {
+	if (intersected_piece(l, a, b, pieces) == NULL) {
 		return create_piece(a, w, h, 1, dir, p, (struct coords){ a.x + cc.x, a.y + cc.y, a.z + cc.z});
 	}
 	return NULL;
 }
 
-void simple_room_build(struct level* l, struct dg_piece* p,
-		struct dg_list* pieces, struct dg_list* build_order, struct dg_parts_array* parts)
-{
-	for(int j = 0; j < p->height; ++j) {
-		for(int i = 0; i < p->width; ++i) {
-			if(i == 0 || j == 0 || i == p->width - 1 || j == p->height - 1) {
+void simple_room_build(level_t *l, dg_piece_t *p, dg_list_t *pieces, 
+		dg_list_t *build_order, dg_parts_array_t *parts) {
+	for (int j = 0; j < p->height; ++j) {
+		for (int i = 0; i < p->width; ++i) {
+			if (i == 0 || j == 0 || i == p->width - 1 || j == p->height - 1) {
 				at(l, p->pos.x + i, p->pos.y + j, p->pos.z) = '#';
 			}
 			else at(l, p->pos.x + i, p->pos.y + j, p->pos.z) = '.';
@@ -139,14 +177,21 @@ void simple_room_build(struct level* l, struct dg_piece* p,
 
 	/* a bit of a hack, if anchor == -1, -1, -1 it's the first dungeon piece
 	 * which does not have an anchor point */
-	if(p->anchor.x >= 0 && p->anchor.y >= 0 && p->anchor.z >= 0)
+	//if(p->anchor.x >= 0 && p->anchor.y >= 0 && p->anchor.z >= 0)
+	//	at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '.';
+
+	if (p->anchor.x != p->pos.x && p->anchor.y != p->pos.y &&
+		p->anchor.x != p->pos.x+p->width-1 && p->anchor.y != p->pos.y+p->height-1) {
+		at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '<';
+	} else {
 		at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '.';
+	}
 
 	/* approximately a possible connection per every 3 tiles of perimeter */
 	int conns = (2*(p->width-1) + 2*(p->height-1)) / 3; 
 
 	/* queueing more pieces randomly */
-	for(int i = 0; i < conns; ++i) {
+	for (int i = 0; i < conns; ++i) {
 		dir_t d = rand() % 4;
 		struct coords c;
 		c.z = p->pos.z;
@@ -173,16 +218,15 @@ void simple_room_build(struct level* l, struct dg_piece* p,
 	}
 }
 
-void column_room_build(struct level* l, struct dg_piece* p, 
-		struct dg_list* pieces, struct dg_list* build_order, struct dg_parts_array* parts)
-{
-	for(int j = 0; j < p->height; ++j) {
-		for(int i = 0; i < p->width; ++i) {
-			if(i == 0 || j == 0 || i == p->width - 1 || j == p->height - 1) {
+void column_room_build(level_t *l, dg_piece_t *p, dg_list_t *pieces,
+		dg_list_t *build_order, dg_parts_array_t *parts) {
+	for (int j = 0; j < p->height; ++j) {
+		for (int i = 0; i < p->width; ++i) {
+			if (i == 0 || j == 0 || i == p->width - 1 || j == p->height - 1) {
 				at(l, p->pos.x+i, p->pos.y+j, p->pos.z) = '#';
 			}
 			else {
-				if(((p->width % 2 && i % 2 == 0) || (p->width % 2 == 0 && (i+1)%3 == 0))
+				if (((p->width % 2 && i % 2 == 0) || (p->width % 2 == 0 && (i+1)%3 == 0))
 					&& ((p->height % 2 && j % 2 == 0) || (p->height % 2 == 0 && (j+1)%3 == 0)))
 					at(l, p->pos.x+i, p->pos.y+j, p->pos.z) = '#';
 				else 
@@ -192,9 +236,16 @@ void column_room_build(struct level* l, struct dg_piece* p,
 		}
 	}
 
+	if (p->anchor.x != p->pos.x && p->anchor.y != p->pos.y &&
+		p->anchor.x != p->pos.x+p->width-1 && p->anchor.y != p->pos.y+p->height-1) {
+		at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '<';
+	} else {
+		at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '.';
+	}
+
 	int conns = (2*(p->width-1) + 2*(p->height-1)) / 3; 
 
-	for(int i = 0; i < conns; ++i) {
+	for (int i = 0; i < conns; ++i) {
 		struct coords c;
 		dir_t d = rand() % 4;
 		c.z = p->pos.z;
