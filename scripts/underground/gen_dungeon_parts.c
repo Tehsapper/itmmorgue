@@ -4,119 +4,131 @@
 
 #include "gen_dungeon_parts.h"
 
-// Hardcoded static dungeon parts examples
-dg_gen_part_t
-xbone_room = (dg_gen_part_t) {
-	.width = 13, .height = 11, .depth = 1, // Dimensions
-	.data = (char *[]) {                   // Map, array of C-string rows
-	/* Z-level = 0 */                      // as if piece is directed NORTH
-	/* X ---> */
-/* Y */	"##.##   ##.##", 
-		"#...#   #...#", 
-/* | */	"#...#   #...#",
-/* | */	"#...#####...#",
-/* V */	"#...........#",
-		".............",
-		"#...........#",
-		"#...#####...#",
-		"#...#   #...#",
-		"#...#   #...#", 
-		"##.##   ##.##" },
-	.class = GEN_ROOM,                      // Room class
-	.gen_type = GEN_STATIC,
-	.weight = 3,                            // Generation weight
-	.conns = (coords_t[]) {                 // 3d internal coordinates of
-		{ 0,  5, 0},                        // possible connection points
-		{12,  5, 0},
-		{ 2,  0, 0},
-		{10,  0, 0},                        // MUST have a connection at
-		{ 2, 10, 0},                        // 'southern' (lowest) edge
-		{10, 10, 0} },
-	.max_conns = 6,                         // Length of 'conns' array
-	.max_count = DG_ANY_COUNT,              // Maximum allowed count
-	.gen_fptr = NULL, .build_fptr = NULL    // Unused dynamic gen fptrs
-};
+void add_hardcoded_dungeon_parts(dg_parts_array_t *a) {
+	// Hardcoded static dungeon parts examples
+	// Not constant expressions so can't be used for static storage objects
+	// (as least if no extensions are in play)
+	dg_gen_part_t *xbone_room = malloc(sizeof(dg_gen_part_t));
+	*xbone_room = (dg_gen_part_t) {
+		.width = 13, .height = 11, .depth = 1, // Dimensions
+		.data = (char *[]) {                   // Map, array of C-string rows
+		// Z-level = 0                         // as if piece is directed NORTH
+		// X --->
+			"##.##   ##.##",  // Y
+			"#...#   #...#",
+			"#...#   #...#",  // |
+			"#...#####...#",  // |
+			"#...........#",  // V
+			".............",
+			"#...........#",
+			"#...#####...#",
+			"#...#   #...#",
+			"#...#   #...#",
+			"##.##   ##.##" },
+		.class = GEN_ROOM,                      // Room class
+		.gen_type = GEN_STATIC,
+		.weight = 3,                            // Generation weight
+		.conns = (coords_t[]) {                 // 3d internal coordinates of
+			{ 0,  5, 0},                        // possible connection points
+			{12,  5, 0},
+			{ 2,  0, 0},
+			{10,  0, 0},                        // MUST have a connection at
+			{ 2, 10, 0},                        // 'southern' (lowest) edge
+			{10, 10, 0} },
+		.max_conns = 6,                         // Length of 'conns' array
+		.max_count = DG_ANY_COUNT,              // Maximum allowed count
+		.gen_fptr = NULL, .build_fptr = NULL    // Unused dynamic gen fptrs
+	};
+	add_gen_part(a, xbone_room);
 
-dg_gen_part_t
-stairwell = (dg_gen_part_t) {
-	.width = 7, .height = 5, .depth = 2,
-	.data = (char *[]) {
-	// Z-level = 0
-		"###.###",
-		"#.....#",
-		"#.....#",
-		"#..#.>#",
-		"#.#####",
-	// Z-level = 1
-		"###.###",
-		"#.....#",
-		"#.....#",
-		"#..#.<#",
-		"#.#####" },
-	.class = GEN_ROOM,
-	.gen_type = GEN_STATIC,
-	.weight = 4,
-	.conns = (coords_t[]) {
-		{ 3, 0, 0 },
-		{ 1, 4, 0 },
-		{ 3, 0, 1 },
-		{ 1, 4, 1 }	},
-	.max_conns = 4,
-	.max_count = DG_ANY_COUNT,
-	.gen_fptr = NULL, .build_fptr = NULL
-};
 
-// Hardcoded dynamic dungeon part example
-dg_gen_part_t
-simple_room = (dg_gen_part_t) {
-	.data = NULL,                           // No predetermined map
-	.class = GEN_ROOM,
-	.gen_type = GEN_DYNAMIC,
-	.weight = 40,
-	.conns = NULL,                          // No predetermined connections
-	.max_conns = 0,
-	.max_count = DG_ANY_COUNT,
-	.gen_fptr = &simple_room_gen,           // Function ptrs for generation
-	.build_fptr = &simple_room_build,       // and building
-	.flags = DG_PART_FLAGS_ENTRANCE         // Capable of being the entrance
-};                                          // to the dungeon
+	dg_gen_part_t *stairwell = malloc(sizeof(dg_gen_part_t));
+	*stairwell = (dg_gen_part_t) {
+		.width = 7, .height = 5, .depth = 2,
+		.data = (char *[]) {
+		// Z-level = 0
+			"###.###",
+			"#.....#",
+			"#.....#",
+			"#..#.>#",
+			"#.#####",
+		// Z-level = 1
+			"###.###",
+			"#.....#",
+			"#.....#",
+			"#..#.<#",
+			"#.#####" },
+		.class = GEN_ROOM,
+		.gen_type = GEN_STATIC,
+		.weight = 4,
+		.conns = (coords_t[]) {
+			{ 3, 0, 0 },
+			{ 1, 4, 0 },
+			{ 3, 0, 1 },
+			{ 1, 4, 1 }	},
+		.max_conns = 4,
+		.max_count = DG_ANY_COUNT,
+		.gen_fptr = NULL, .build_fptr = NULL
+	};
+	add_gen_part(a, stairwell);
 
-dg_gen_part_t
-column_room = (dg_gen_part_t) {
-	.class = GEN_ROOM,
-	.gen_type = GEN_DYNAMIC,
-	.weight = 10,
-	.max_count = DG_ANY_COUNT,
-	.gen_fptr = &simple_room_gen,
-	.build_fptr = &column_room_build,
-	.flags = DG_PART_FLAGS_ENTRANCE
-};
 
-dg_gen_part_t
-entrance_room = (dg_gen_part_t) {
-	.width = 7, .height = 7, .depth = 1,
-	.data = (char*[]) {
-		"#######",
-		"##...##",
-		"#.....#",
-		"#.....#",
-		"#.....#",
-		"##...##",
-		"#######" },
-	.class = GEN_ROOM,
-	.gen_type = GEN_STATIC,
-	.weight = 1,
-	.conns = (coords_t[]) {
-		{ 3, 0, 0 },
-		{ 0, 3, 0 },
-		{ 6, 3, 0 },
-		{ 3, 6, 0 },
-		{ 3, 3, 0 } },
-	.max_conns = 5,
-	.max_count = DG_ANY_COUNT,
-	.gen_fptr = NULL, .build_fptr = NULL
-};
+	dg_gen_part_t *entrance_room = malloc(sizeof(dg_gen_part_t));
+	*entrance_room = (dg_gen_part_t) {
+		.width = 7, .height = 7, .depth = 1,
+		.data = (char*[]) {
+			"#######",
+			"##...##",
+			"#.....#",
+			"#.....#",
+			"#.....#",
+			"##...##",
+			"#######" },
+		.class = GEN_ROOM,
+		.gen_type = GEN_STATIC,
+		.weight = 1,
+		.conns = (coords_t[]) {
+			{ 3, 0, 0 },
+			{ 0, 3, 0 },
+			{ 6, 3, 0 },
+			{ 3, 6, 0 },
+			{ 3, 3, 0 } },
+		.max_conns = 5,
+		.max_count = DG_ANY_COUNT,
+		.gen_fptr = NULL, .build_fptr = NULL
+	};
+	add_gen_part(a, entrance_room);
 
+
+	// Hardcoded dynamic dungeon part example
+	dg_gen_part_t *simple_room = malloc(sizeof(dg_gen_part_t));
+	*simple_room = (dg_gen_part_t) {
+		.data = NULL,                           // No predetermined map
+		.class = GEN_ROOM,
+		.gen_type = GEN_DYNAMIC,
+		.weight = 40,
+		.conns = NULL,                          // No predetermined connections
+		.max_conns = 0,
+		.max_count = DG_ANY_COUNT,
+		.gen_fptr = &simple_room_gen,           // Function ptrs for generation
+		.build_fptr = &simple_room_build,       // and building
+		.flags = DG_PART_FLAGS_ENTRANCE         // Capable of being the entrance
+	};                                          // to the dungeon
+	add_gen_part(a, simple_room);
+
+
+	dg_gen_part_t *column_room = malloc(sizeof(dg_gen_part_t));
+	*column_room = (dg_gen_part_t) {
+		.class = GEN_ROOM,
+		.gen_type = GEN_DYNAMIC,
+		.weight = 10,
+		.max_count = DG_ANY_COUNT,
+		.gen_fptr = &simple_room_gen,
+		.build_fptr = &column_room_build,
+		.flags = DG_PART_FLAGS_ENTRANCE
+	};
+	add_gen_part(a, column_room);
+}
 
 dg_piece_t* simple_room_gen(level_t* l, dg_gen_part_t *p, coords_t a, dir_t dir,
 		dg_list_t * pieces) {

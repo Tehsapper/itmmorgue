@@ -12,16 +12,6 @@
 
 #define PIECES_DIR "./pieces"
 
-/* Hardcoded dungeon generation parts */
-static dg_gen_part_t* const
-static_parts[] = {
-	&xbone_room,
-	&stairwell,
-	&column_room,
-	&simple_room,
-	&entrance_room
-};
-
 /* Generated room counter */
 static int room_count = 0;
 
@@ -126,7 +116,7 @@ dg_gen_part_t* load_static_gen_part(const char *filename) {
 	}
 
 	int smi = 0; 
-	dg_gen_part_t *r = malloc(sizeof(struct dg_gen_part));
+	dg_gen_part_t *r = malloc(sizeof(dg_gen_part_t));
 	memset(r, 0, sizeof(struct dg_gen_part));
 
 	r->gen_type = GEN_STATIC;
@@ -185,9 +175,7 @@ dg_parts_array_t load_gen_parts() {
 	};
 
 	// First, hardcoded parts are added, such as dynamically generated parts.
-	for (size_t i = 0; i < sizeof(static_parts)/sizeof(dg_gen_part_t*); ++i) {
-		add_gen_part(&result, static_parts[i]);
-	}
+	add_hardcoded_dungeon_parts(&result);
 
 	// Then attempt to load more dungeon generation parts from designated
 	// PIECES_DIR directory
@@ -488,7 +476,7 @@ dg_piece_t* select_piece(level_t *l, coords_t pos, dir_t dir, dg_list_t *pieces,
 
 		if (intersected_piece(l, pos, pos2, pieces) == NULL) {
 			return create_piece(pos, sp->width, sp->height, sp->depth, dir, sp, 
-					(struct coords){ pos.x + cc.x, pos.y + cc.y, pos.z + cc.z});
+					(coords_t){ pos.x + cc.x, pos.y + cc.y, pos.z + cc.z});
 		}
 
 		return NULL;
