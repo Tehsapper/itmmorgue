@@ -34,7 +34,7 @@ void encase_zone(level_t *l, coords_t a, int zone)
  */
 void encase_small_zones(level_t *l, int threshold)
 {
-	for(int i = 0; i < l->zone_info.count; ++i) {
+	for(size_t i = 0; i < l->zone_info.count; ++i) {
 		if(l->zone_info.zones[i].size < threshold) {
 			encase_zone(l, l->zone_info.zones[i].at, i+1);
 		}
@@ -113,13 +113,12 @@ void simple_noise(level_t *l, int wall_rate)
 }
 
 /*
- * Randomly places stairs on specified z-level.
+ * Returns suitable (random) stair placement on specified z-level.
  */
 coords_t place_stairs(level_t *l, int z, char down)
 {
 	int try = 1000000;
 	int x, y;
-	struct stairs *result;
 
 	while(try--)
 	{
@@ -209,6 +208,8 @@ int gen_cave(level_t *l, int z, coords_t stairs_pos, int openness)
 
 int main(int argc, char* argv[])
 {
+	(void)argc;
+	(void)argv;
 	int err;
 	level_t *l = read_level(0);
 
@@ -220,7 +221,7 @@ int main(int argc, char* argv[])
 		0
 	};
 	
-	if (err = gen_cave(l, 0, upstairs, 2)) {
+	if ((err = gen_cave(l, 0, upstairs, 2))) {
 		fprintf(stderr, "failed to generate caves");
 		return err;
 	}

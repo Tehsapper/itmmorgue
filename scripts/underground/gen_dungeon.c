@@ -79,13 +79,13 @@ static void gen_part_sanity_check(dg_gen_part_t *p) {
 
 	if (p->gen_type == GEN_STATIC) {
 		for (int i = 0 ; i < p->height; ++i) {
-			if (strlen(p->data[i]) != p->width) {
+			if ((int)strlen(p->data[i]) != p->width) {
 				die("internal map width does not match specified width");
 			}
 		}
 
 		char flag = 0;
-		for (int i = 0; i < p->max_conns; ++i) {
+		for (size_t i = 0; i < p->max_conns; ++i) {
 			if (p->conns[i].y == p->height-1) flag = 1;
 		}
 		if (!flag) {
@@ -133,14 +133,14 @@ dg_gen_part_t* load_static_gen_part(const char *filename) {
 	r->gen_fptr = NULL;
 	r->build_fptr = NULL;
 
-	if (fscanf(f, "%d%d%d%d%d%d%d", &r->width, &r->height, &r->depth, &r->class,
-			&r->weight, &r->max_count, &r->max_conns) != 7) {
+	if (fscanf(f, "%d%d%d%d%d%ld%lu", &r->width, &r->height, &r->depth, 
+			(int*)&r->class, &r->weight, &r->max_count, &r->max_conns) != 7) {
 		goto rip;
 	}
 
 	r->data = malloc(sizeof(char*) * r->height * r->depth);
 	r->conns = malloc(sizeof(coords_t) * r->max_conns);
-	for (int i = 0; i < r->max_conns; ++i) {
+	for (size_t i = 0; i < r->max_conns; ++i) {
 		if (fscanf(f, "%d%d%d", &r->conns[i].x, &r->conns[i].y, 
 				&r->conns[i].z) != 3) {
 			goto rip_conns;
@@ -185,7 +185,7 @@ dg_parts_array_t load_gen_parts() {
 	};
 
 	// First, hardcoded parts are added, such as dynamically generated parts.
-	for (int i = 0; i < sizeof(static_parts)/sizeof(dg_gen_part_t*); ++i) {
+	for (size_t i = 0; i < sizeof(static_parts)/sizeof(dg_gen_part_t*); ++i) {
 		add_gen_part(&result, static_parts[i]);
 	}
 
@@ -258,12 +258,13 @@ void flush_list(dg_list_t *l) {
  * ret : 'pos' coordinates projected onto level
  */
 coords_t sm2l(coords_t pos, int w, int h, int d, dir_t dir) {
+	(void)d;
 	switch(dir) {
-	case EAST:	return (coords_t) { w-1 - pos.y, pos.x, pos.z };
-	case SOUTH:	return (coords_t) { w-1 - pos.x, h-1 - pos.y, pos.z };
-	case WEST:	return (coords_t) { pos.y, h-1 - pos.x, pos.z };
-	case NORTH:
-	default: return (coords_t) { pos.x, pos.y, pos.z };
+		case EAST:	return (coords_t) { w-1 - pos.y, pos.x, pos.z };
+		case SOUTH:	return (coords_t) { w-1 - pos.x, h-1 - pos.y, pos.z };
+		case WEST:	return (coords_t) { pos.y, h-1 - pos.x, pos.z };
+		case NORTH:
+		default: return (coords_t) { pos.x, pos.y, pos.z };
 	}
 }
 
@@ -275,6 +276,7 @@ coords_t psm2l(dg_piece_t *p, coords_t pos) {
  * Returns dungeon piece occupying this tile.
  */
 dg_piece_t* point_occupied(level_t *l, coords_t pos, dg_list_t *pieces) {
+	(void)pieces;
 	if(!VALID_COORDS(l, pos)) return NULL;
 	return (dg_piece_t*) room_at(l, pos.x, pos.y, pos.z);
 }
@@ -291,6 +293,7 @@ dg_piece_t* point_occupied(level_t *l, coords_t pos, dg_list_t *pieces) {
  */
 dg_piece_t* intersected_piece(level_t *l, coords_t a, coords_t b, 
 		dg_list_t *pieces) {
+	(void)pieces;
 	if(!VALID_COORDS(l, a) || !VALID_COORDS(l, b)) return NULL;
 
 	for (int k = a.z; k <= b.z; ++k)
@@ -307,9 +310,9 @@ dg_piece_t* intersected_piece(level_t *l, coords_t a, coords_t b,
  * Does not take into account parts that can't be generated (e.g. exceeded max
  * allowed count)
  */
-static void recalculate_parts_total_weight(dg_parts_array_t* a) {
+void recalculate_parts_total_weight(dg_parts_array_t* a) {
 	a->total_weight = 0;
-	for (int i = 0; i < a->length; ++i) {
+	for (size_t i = 0; i < a->length; ++i) {
 		dg_gen_part_t *p = a->data[i];
 		if (p->max_count == DG_ANY_COUNT || p->count < p->max_count) {
 			a->total_weight += p->weight;
@@ -323,9 +326,9 @@ static void recalculate_parts_total_weight(dg_parts_array_t* a) {
 dg_gen_part_t* weighted_part_roll(dg_parts_array_t *parts) {
 	if (parts == NULL) return NULL;
 
-	int roll = rand() % parts->total_weight;
+	unsigned int roll = rand() % parts->total_weight;
 
-	for (int i = 0; i < parts->length; ++i) {
+	for (size_t i = 0; i < parts->length; ++i) {
 		struct dg_gen_part *p = parts->data[i];
 		
 		// If there is enough of this dungeon part, do not bother.
@@ -388,7 +391,7 @@ dir_t get_conn_dir(dg_piece_t *p, int conn_id) {
  */
 static int has_upward_connection(dg_gen_part_t *t)
 {
-	for(int i = 0; i < t->max_conns; ++i) {
+	for (size_t i = 0; i < t->max_conns; ++i) {
 		dir_t d = _get_conn_dir(t, NORTH, i);
 		if(d == UP) return 1;
 	}
@@ -405,9 +408,9 @@ dg_parts_array_t load_starting_parts(dg_parts_array_t from) {
 		.total_weight = 0
 	};
 
-	for(int i = 0; i < from.length; ++i) {
-		if(from.data[i]->gen_type == GEN_STATIC) {
-			if(has_upward_connection(from.data[i])) {
+	for (size_t i = 0; i < from.length; ++i) {
+		if (from.data[i]->gen_type == GEN_STATIC) {
+			if (has_upward_connection(from.data[i])) {
 				add_gen_part(&result, from.data[i]);
 			}
 		}
@@ -416,7 +419,7 @@ dg_parts_array_t load_starting_parts(dg_parts_array_t from) {
 		}
 	}
 
-	fprintf(stderr, "%d entrance-capable parts.\n", result.length);
+	fprintf(stderr, "%ld entrance-capable parts.\n", result.length);
 	return result;
 }
 
@@ -512,6 +515,8 @@ int doorway_scan(level_t* l, coords_t p, dir_t d) {
 				if(p.x > 0 && at(l, p.x-1, p.y, p.z) != '#') return 0;
 				if(p.x < (l->w-1) && at(l, p.x+1, p.y, p.z) != '#') return 0;
 				return 1;
+			default:
+				return 0;
 		}
 	}
 	else if (at(l, p.x, p.y, p.z) == '#') {
@@ -525,6 +530,8 @@ int doorway_scan(level_t* l, coords_t p, dir_t d) {
 			case SOUTH:
 				if(p.x > 0 && at(l, p.x-1, p.y, p.z) == '+') return 1;
 				if(p.x < (l->w-1) && at(l, p.x+1, p.y, p.z) == '+') return 1;
+				return 0;
+			default:
 				return 0;
 		}
 	}
@@ -556,6 +563,9 @@ void closeoff_connection(level_t *l, coords_t p, dir_t d) {
 			if (p.y < l->h-1 && at(l, p.x, p.y+1, p.z) == ' ')
 				at(l, p.x, p.y, p.z) = '#';
 			break;
+		default:
+			at(l, p.x, p.y, p.z) = '#';
+			break;
 	}
 }
 
@@ -586,6 +596,12 @@ void openup_connection(level_t *l, coords_t p, dir_t d, char door) {
 				at(l, p.x, p.y, p.z) = '#';
 			if (p.y < l->h-1 && at(l, p.x, p.y+1, p.z) == ' ')
 				at(l, p.x, p.y, p.z) = '#';
+			break;
+		case UP:
+			at(l, p.x, p.y, p.z) = '<';
+			break;
+		case DOWN:
+			at(l, p.x, p.y, p.z) = '>';
 			break;
 	}
 }
@@ -733,6 +749,10 @@ void build_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces, dg_list_t *bo,
 							at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k)
 								= bp[doff + i][p->height-1 - j];
 							break;
+						default:
+							fprintf(stderr, "bad piece direction %d\n", p->dir);
+							exit(EXIT_FAILURE);
+							break;
 					}
 				}
 			}
@@ -749,7 +769,7 @@ void build_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces, dg_list_t *bo,
 
 		// Try to queue up more dungeon pieces for every possible connection.
 		// If it's not possible queue_piece() will close them off.
-		for (int i = 0; i < t->max_conns; ++i) {
+		for (size_t i = 0; i < t->max_conns; ++i) {
 			dir_t d = get_conn_dir(p, i);
 
 			// converting connection internal piece coords into level coords
@@ -810,7 +830,7 @@ void gen_dungeon(level_t *l, coords_t *stairs, size_t stairs_count,
 	// Algorithm main loop: queue, and then build pieces
 	// until the piece limit is hit or it's not possible to build any more
 	// dungeon pieces (the build order list is empty).
-	while (pieces.count < max_pieces && room_count < max_rooms
+	while (pieces.count < (size_t)max_pieces && room_count < max_rooms
 		&& build_order.count > 0) {
 		for (dg_list_node_t* i = build_order.first; i; i = i->next) {
 			build_piece(l, (dg_piece_t*)i->who, &pieces, &next_bo, &parts);
@@ -824,7 +844,7 @@ void gen_dungeon(level_t *l, coords_t *stairs, size_t stairs_count,
 	for(dg_list_node_t *i = build_order.first; i; i = i->next) {
 		build_piece(l, (dg_piece_t*)i->who, &pieces, NULL, NULL);
 	}
-	fprintf(stderr, "%d pieces\n", pieces.count);
+	fprintf(stderr, "%ld pieces\n", pieces.count);
 }
 
 int main(int argc, char* argv[]) {

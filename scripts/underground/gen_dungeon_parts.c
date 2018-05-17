@@ -1,5 +1,6 @@
 // vim: sw=4 ts=4 et :
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "gen_dungeon_parts.h"
 
@@ -210,6 +211,10 @@ void simple_room_build(level_t *l, dg_piece_t *p, dg_list_t *pieces,
 				c.x = p->pos.x + p->width-1;
 				c.y = p->pos.y + rand() % (p->height-2) + 1;
 				break;
+			default:
+				fprintf(stderr, "bad room direction %d\n", p->dir);
+				exit(EXIT_FAILURE);
+				break;
 		}
 		queue_piece(l, c, d, p, pieces, build_order, parts);
 	}
@@ -263,6 +268,10 @@ void column_room_build(level_t *l, dg_piece_t *p, dg_list_t *pieces,
 			case EAST:
 				c.x = p->pos.x + p->width-1;
 				c.y = p->pos.y + rand() % (p->height-2) + 1;
+				break;
+			default:
+				fprintf(stderr, "bad room direction %d\n", p->dir);
+				exit(EXIT_FAILURE);
 				break;
 		}
 		queue_piece(l, c, d, p, pieces, build_order, parts);
