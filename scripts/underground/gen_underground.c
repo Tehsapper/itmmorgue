@@ -1,8 +1,10 @@
+// vim: sw=4 ts=4 et :
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include "gen_underground.h"
 #include <stdio.h>
+
+#include "gen_underground.h"
 
 void init_level(level_t *l) {
 	l->map = NULL;
@@ -41,7 +43,9 @@ void add_zone(level_t *l, coords_t at)
 	r->size = 0;
 }
 
-/* reads level data from specified file descriptor */
+/*
+ * Reads level data from specified file descriptor.
+ */
 level_t* read_level(int fd)
 {
 	const ssize_t bsize = 4096;
@@ -70,19 +74,20 @@ level_t* read_level(int fd)
 	result = malloc(sizeof(struct level));
 	result->map = data;
 	result->roommap = calloc(size+1, sizeof(void*));
-	/* determining level width */
-	/* level z-levels are separated by a single newline*/
+	// Determining level width
+	// Z-levels are separated by a single newline
 	for (i = 0; i < size && data[i] != '\n'; ++i);
 	for (j = 0; j < size && data[j * (i+1)] != '\n'; ++j)
 	result->w = i;
 	result->h = j;
-	/* determining level depth */
+	// Determining level depth
 	result->d = (size / ((i+1) * j + 1));
 
 	result->zone_info.zones = NULL;
 	result->zone_info.map = NULL;
 	result->zone_info.count = 0;
-	fprintf(stderr, "level %d x %d x %d, size %lu, rsize %lu\n", result->w, result->h, result->d, size+1, sizeof(void*) * (size+1));
+	fprintf(stderr, "level %d x %d x %d, size %lu, rsize %lu\n", result->w,
+			result->h, result->d, size+1, sizeof(void*) * (size+1));
 	return result;
 }
 
@@ -101,8 +106,9 @@ void zone_flood_fill(level_t *l, coords_t c, int zone)
 	l->zone_info.map[c.x + c.y*l->w] = zone;
 	l->zone_info.zones[zone-1].size++;
 
-	for (i = 0; i < 16; i += 2)
-		zone_flood_fill(l, (struct coords) { c.x + dirs[i], c.y + dirs[i+1], c.z }, zone);
+	for (i = 0; i < 16; i += 2) {
+		zone_flood_fill(l, (coords_t){c.x+dirs[i], c.y+dirs[i+1], c.z }, zone);
+	}
 }
 
 void write_level(level_t *l, int fd)

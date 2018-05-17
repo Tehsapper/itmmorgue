@@ -1,3 +1,4 @@
+// vim: et sw=4 ts=4 :
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -11,7 +12,8 @@
 
 #define PIECES_DIR "./pieces"
 
-static struct dg_gen_part* const
+/* Hardcoded dungeon generation parts */
+static dg_gen_part_t* const
 static_parts[] = {
 	&xbone_room,
 	&stairwell,
@@ -20,6 +22,7 @@ static_parts[] = {
 	&entrance_room
 };
 
+/* Generated room counter */
 static int room_count = 0;
 
 void die(const char* reason) {
@@ -27,6 +30,19 @@ void die(const char* reason) {
 	exit(EXIT_FAILURE);
 }
 
+/*
+ * Allocates and initializes dungeon piece object (dg_piece_t).
+ *
+ * pos : top-left dungeon piece position
+ * w : dungeon piece width
+ * h : dungeon piece height
+ * d : dungeon piece depth
+ * dir : dungeon piece direction
+ * t : dungeon piece type
+ * anchor : level coords of its anchor (tile used to connect to other piece)
+ *
+ * ret : ptr to initialized dungeon piece object
+ */
 dg_piece_t* create_piece(coords_t pos, int w, int h, int d, dir_t dir,
 		 dg_gen_part_t *t, coords_t anchor) {
 	dg_piece_t *r = malloc(sizeof(dg_piece_t));
@@ -38,8 +54,6 @@ dg_piece_t* create_piece(coords_t pos, int w, int h, int d, dir_t dir,
 	r->type = t;
 	r->anchor = anchor;
 	r->flags = DG_FLAGS_NONE;
-	/*fprintf(stderr, "created piece at (%d, %d, %d) anchor [%d, %d, %d], w %d h %d d %d, dir %d\n", 
-		r->pos.x, r->pos.y, r->pos.z, r->anchor.x, r->anchor.y, r->anchor.z, r->width, r->height, r->depth, r->dir);*/
 	return r;
 }
 
@@ -49,8 +63,9 @@ dir_t rotate_dir(dir_t a, dir_t b)
 	return (a + b) % 4;
 }
 
-/* performs simple sanity checks on supplied dg_gen_part_t */
-/* no warranty */
+/*
+ * Performs simple sanity checks for passed dungeon generation part.
+ */
 static void gen_part_sanity_check(dg_gen_part_t *p) {
 	if (p->gen_type == GEN_STATIC && (p->gen_fptr || p->build_fptr)) {
 		die("static part has non-NULL generation fptrs");
@@ -79,7 +94,10 @@ static void gen_part_sanity_check(dg_gen_part_t *p) {
 	}
 }
 
-void add_gen_part(dg_parts_array_t* arr, dg_gen_part_t* p) {
+/*
+ * Adds dungeon generation part to an array of such parts.
+ */
+void add_gen_part(dg_parts_array_t *arr, dg_gen_part_t *p) {
 	gen_part_sanity_check(p);
 
 	arr->data = realloc(arr->data, sizeof(dg_gen_part_t*) * (arr->length + 1));
@@ -91,7 +109,14 @@ void add_gen_part(dg_parts_array_t* arr, dg_gen_part_t* p) {
 	p->count = 0;
 }
 
-/* extremely crude generation part loader */
+/*
+ * Very simple dungeon generation part loader.
+ *
+ * filename : path to file containing generation info for specific
+ *			  dungeon piece
+ *
+ * ret : ptr to loaded dungeon generation part
+ */
 dg_gen_part_t* load_static_gen_part(const char *filename) {
 	fprintf(stderr, "loading part \"%s\"\n", filename);
 	FILE* f = fopen(filename, "r");
@@ -149,7 +174,9 @@ rip:
 	return NULL;
 }
 
-/* returns array of available dungeon generation parts */
+/*
+ * Returns an array of available dungeon generation parts.
+ */
 dg_parts_array_t load_gen_parts() {
 	dg_parts_array_t result = (dg_parts_array_t) {
 		.data = NULL,
@@ -157,21 +184,24 @@ dg_parts_array_t load_gen_parts() {
 		.total_weight = 0
 	};
 
-	/* first we add hardcoded parts, such as dynamically genned parts */
+	// First, hardcoded parts are added, such as dynamically generated parts.
 	for (int i = 0; i < sizeof(static_parts)/sizeof(dg_gen_part_t*); ++i) {
 		add_gen_part(&result, static_parts[i]);
 	}
 
-	/* then we check dedicated piece directory
-	 * for "*.idp" files describing static parts */
+	// Then attempt to load more dungeon generation parts from designated
+	// PIECES_DIR directory
 	DIR *d;
 	struct dirent *dir;
 	if ((d = opendir(PIECES_DIR))) {
 		while ((dir = readdir(d))) {
 			int l = strlen(dir->d_name);
+
+			// Check for files ending with '.idp'
 			if (l > 4 && strncmp(dir->d_name + l - 4, ".idp", 4) == 0) {
 				char name[sizeof(PIECES_DIR) + 256];
 	
+				// Form path for found files relative to PIECES_DIR
 				strncpy(name, PIECES_DIR, sizeof(PIECES_DIR));
 				name[sizeof(PIECES_DIR)-1] = '/';
 				strncpy(name + sizeof(PIECES_DIR), dir->d_name, l+1);
@@ -216,7 +246,17 @@ void flush_list(dg_list_t *l) {
 	l->count = 0;
 }
 
-/* converts part internal map coords into level coords */
+/*
+ * Converts dungeon part internal map coords into level coords.
+ *
+ * pos : internal map coordinates
+ * w : dungeon part width
+ * h : dungeon part height
+ * d : dungeon part depth
+ * dir : dungeon part direction
+ *
+ * ret : 'pos' coordinates projected onto level
+ */
 coords_t sm2l(coords_t pos, int w, int h, int d, dir_t dir) {
 	switch(dir) {
 	case EAST:	return (coords_t) { w-1 - pos.y, pos.x, pos.z };
@@ -231,13 +271,24 @@ coords_t psm2l(dg_piece_t *p, coords_t pos) {
 	return sm2l(pos, p->width, p->height, p->depth, p->dir);
 }
 
-/* returns dungeon piece occupying this position */
+/*
+ * Returns dungeon piece occupying this tile.
+ */
 dg_piece_t* point_occupied(level_t *l, coords_t pos, dg_list_t *pieces) {
 	if(!VALID_COORDS(l, pos)) return NULL;
 	return (dg_piece_t*) room_at(l, pos.x, pos.y, pos.z);
 }
 
-/* returns any piece that intersects this area */
+/*
+ * Returns any dungeon piece that intersects this 3d area.
+ *
+ * l : ptr to dungeon level object
+ * a : top-left area cuboid vertice coordinates
+ * b : bottom-right area cuboid vertice coordinates
+ *
+ * ret : ptr to any dungeon piece in cuboid defined by a and b or NULL if none
+ *       present
+ */
 dg_piece_t* intersected_piece(level_t *l, coords_t a, coords_t b, 
 		dg_list_t *pieces) {
 	if(!VALID_COORDS(l, a) || !VALID_COORDS(l, b)) return NULL;
@@ -251,6 +302,11 @@ dg_piece_t* intersected_piece(level_t *l, coords_t a, coords_t b,
 	return NULL;
 }
 
+/*
+ * Updates total weight of all dungeon generation parts in array.
+ * Does not take into account parts that can't be generated (e.g. exceeded max
+ * allowed count)
+ */
 static void recalculate_parts_total_weight(dg_parts_array_t* a) {
 	a->total_weight = 0;
 	for (int i = 0; i < a->length; ++i) {
@@ -261,7 +317,9 @@ static void recalculate_parts_total_weight(dg_parts_array_t* a) {
 	}
 }
 
-/* randomly rolls for a dungeon part considering their weights */
+/*
+ * Randomly rolls for a dungeon part in supplied array using their weights.
+ */
 dg_gen_part_t* weighted_part_roll(dg_parts_array_t *parts) {
 	if (parts == NULL) return NULL;
 
@@ -270,6 +328,7 @@ dg_gen_part_t* weighted_part_roll(dg_parts_array_t *parts) {
 	for (int i = 0; i < parts->length; ++i) {
 		struct dg_gen_part *p = parts->data[i];
 		
+		// If there is enough of this dungeon part, do not bother.
 		if (p->max_count != DG_ANY_COUNT && p->count >= p->max_count) continue;
 
 		if (p->weight > roll) {
@@ -281,11 +340,14 @@ dg_gen_part_t* weighted_part_roll(dg_parts_array_t *parts) {
 		roll -= parts->data[i]->weight;
 	}
 
-	/* not possible if total weight is not screwed */
+	// Should not be possible if total weight is accurate.
 	return NULL;
 }
 
-/* projects dungeon piece onto the level */
+/*
+ * Projects dungeon piece onto the dungeon level. Does not update actual level
+ * map.
+ */
 static void project_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces) {
 	for (int k = 0; k < p->depth; ++k)
 		for (int j = 0; j < p->height; ++j)
@@ -295,7 +357,15 @@ static void project_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces) {
 	append_list(p, pieces);
 }
 
-/* returns direction the specified dungeon piece connection is pointing to */
+/*
+ * Returns the direction dungeon piece connection is pointing to.
+ *
+ * t : dungeon part type of that dungeon piece
+ * dir : dungeon piece orientation
+ * conn : id of dungeon part connection used
+ *
+ * ret : resulting direction
+ */
 static dir_t _get_conn_dir(dg_gen_part_t *t, dir_t dir, int conn) {
 	int d;
 	if (t->conns[conn].x == 0) d = WEST;
@@ -308,10 +378,14 @@ static dir_t _get_conn_dir(dg_gen_part_t *t, dir_t dir, int conn) {
 	return rotate_dir(d, dir);
 }
 
+
 dir_t get_conn_dir(dg_piece_t *p, int conn_id) {
 	return _get_conn_dir(p->type, p->dir, conn_id);
 }
 
+/*
+ * Checks if passed dungeon generation part has any upward connections.
+ */
 static int has_upward_connection(dg_gen_part_t *t)
 {
 	for(int i = 0; i < t->max_conns; ++i) {
@@ -321,6 +395,9 @@ static int has_upward_connection(dg_gen_part_t *t)
 	return 0;
 }
 
+/*
+ * Selects parts that have upward connections from another parts array.
+ */
 dg_parts_array_t load_starting_parts(dg_parts_array_t from) {
 	dg_parts_array_t result = (dg_parts_array_t) {
 		.data = NULL,
@@ -343,27 +420,37 @@ dg_parts_array_t load_starting_parts(dg_parts_array_t from) {
 	return result;
 }
 
-/* attempts to randomly select a piece that will fit into the level */
+/*
+ * Attempts to randomly select a dungeon piece that will fit into the level.
+ *
+ * l : ptr to dungeon level object
+ * pos : level coords of tile to be used as connection point
+ * dir : orientation of new dungeon piece
+ * pieces : list of already present dungeon pieces
+ * parts : array of available dungeon generation parts
+ *
+ * ret : ptr to dungeon piece object on success, otherwise NULL
+ */
 dg_piece_t* select_piece(level_t *l, coords_t pos, dir_t dir, dg_list_t *pieces,
 		dg_parts_array_t* parts) {
 	int c;
 	dg_gen_part_t *sp = weighted_part_roll(parts);
 
-	/* maybe our dungeon generator only has finite parts */
+	// weighted_part_roll() can fail if all parts are finite.
 	if (sp == NULL) return NULL;
 
 	if (sp->gen_type == GEN_STATIC) {
-		/* orthogonal directions */
+		// In case of orthogonal direction
 		if(dir < 4) {
-			/* since those internal maps are oriented north,
-			 * we use any connection at the 'southern' side */
+			// Since those internal maps are oriented north,
+			// any connection at the 'southern' side is picked.
 			do {
 				c = rand() % sp->max_conns;
 			} while (sp->conns[c].y != sp->height-1);
 		}
-		/* up & down */
+		// up & down
 		else {
-			/* not implemented */
+			// not implemented
 			if(dir == DOWN) return NULL;
 
 			if(!has_upward_connection(sp)) return NULL;
@@ -372,10 +459,12 @@ dg_piece_t* select_piece(level_t *l, coords_t pos, dir_t dir, dg_list_t *pieces,
 				c = rand() % sp->max_conns;
 			} while (_get_conn_dir(sp, NORTH, c) != dir);
 
+			// As of now, dungeon piece can't be oriented on the z-axis.
+			// Instead we pick any random orthogonal direction.
 			dir = rand() % 4;
 		}
 		
-		/* now we calculate coords of piece's top-left corner on the level */
+		// Piece's top-left tile coords on the level map.
 		coords_t cc = sm2l(sp->conns[c],
 			ADJ_WIDTH(dir, sp->width, sp->height),
 			ADJ_HEIGHT(dir, sp->width, sp->height), sp->depth, dir);
@@ -384,7 +473,7 @@ dg_piece_t* select_piece(level_t *l, coords_t pos, dir_t dir, dg_list_t *pieces,
 		pos.y -= cc.y;
 		pos.z -= cc.z;
 		
-		/* and bottom-right corner */
+		// and bottom-right tile coords
 		coords_t pos2 = (struct coords) {
 			.x = pos.x + ADJ_WIDTH(dir, sp->width, sp->height) - 1,
 			.y = pos.y + ADJ_HEIGHT(dir, sp->width, sp->height) - 1,
@@ -405,97 +494,121 @@ dg_piece_t* select_piece(level_t *l, coords_t pos, dir_t dir, dg_list_t *pieces,
 	}
 }
 
-/* checks if tile is part of a doorway */
+/*
+ * Checks if tile is part of a doorway.
+ */
 int doorway_scan(level_t* l, coords_t p, dir_t d) {
 	if (!VALID_COORDS(l, p)) return 0;
 
 	if (at(l, p.x, p.y, p.z) == '+') {
 		switch(d) {
-		case EAST:
-		case WEST:
-			if(p.y > 0 && at(l, p.x, p.y-1, p.z) != '#') return 0;
-			if(p.y < (l->h-1) && at(l, p.x, p.y+1, p.z) != '#') return 0;
-			return 1;
-		case NORTH:
-		case SOUTH:
-			if(p.x > 0 && at(l, p.x-1, p.y, p.z) != '#') return 0;
-			if(p.x < (l->w-1) && at(l, p.x+1, p.y, p.z) != '#') return 0;
-			return 1;
+			case EAST:
+			case WEST:
+				if(p.y > 0 && at(l, p.x, p.y-1, p.z) != '#') return 0;
+				if(p.y < (l->h-1) && at(l, p.x, p.y+1, p.z) != '#') return 0;
+				return 1;
+			case NORTH:
+			case SOUTH:
+				if(p.x > 0 && at(l, p.x-1, p.y, p.z) != '#') return 0;
+				if(p.x < (l->w-1) && at(l, p.x+1, p.y, p.z) != '#') return 0;
+				return 1;
 		}
 	}
 	else if (at(l, p.x, p.y, p.z) == '#') {
 		switch(d) {
-		case EAST:
-		case WEST:
-			if(p.y > 0 && at(l, p.x, p.y-1, p.z) == '+') return 1;
-			if(p.y < (l->h-1) && at(l, p.x, p.y+1, p.z) == '+') return 1;
-			return 0;
-		case NORTH:
-		case SOUTH:
-			if(p.x > 0 && at(l, p.x-1, p.y, p.z) == '+') return 1;
-			if(p.x < (l->w-1) && at(l, p.x+1, p.y, p.z) == '+') return 1;
-			return 0;
+			case EAST:
+			case WEST:
+				if(p.y > 0 && at(l, p.x, p.y-1, p.z) == '+') return 1;
+				if(p.y < (l->h-1) && at(l, p.x, p.y+1, p.z) == '+') return 1;
+				return 0;
+			case NORTH:
+			case SOUTH:
+				if(p.x > 0 && at(l, p.x-1, p.y, p.z) == '+') return 1;
+				if(p.x < (l->w-1) && at(l, p.x+1, p.y, p.z) == '+') return 1;
+				return 0;
 		}
 	}
 	return 0;
 }
 
-/* properly (?) seals dungeon piece connection point */
+/*
+ * Properly (?) walls off dungeon piece connection point.
+ */
 void closeoff_connection(level_t *l, coords_t p, dir_t d) {
-	switch(d)
-	{
-	case NORTH:
-	case SOUTH:
-		if (p.x > 0 && at(l, p.x-1, p.y, p.z) == ' ')
+	switch(d) {
+		case NORTH:
+		case SOUTH:
+			if (p.x > 0 && at(l, p.x-1, p.y, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+
 			at(l, p.x, p.y, p.z) = '#';
 
-		at(l, p.x, p.y, p.z) = '#';
+			if (p.x < l->w-1 && at(l, p.x+1, p.y, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+			break;
+		case EAST:
+		case WEST:
+			if (p.y > 0 && at(l, p.x, p.y-1, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
 
-		if (p.x < l->w-1 && at(l, p.x+1, p.y, p.z) == ' ')
-			at(l, p.x, p.y, p.z) = '#';
-		break;
-	case EAST:
-	case WEST:
-		if (p.y > 0 && at(l, p.x, p.y-1, p.z) == ' ')
 			at(l, p.x, p.y, p.z) = '#';
 
-		at(l, p.x, p.y, p.z) = '#';
-
-		if (p.y < l->h-1 && at(l, p.x, p.y+1, p.z) == ' ')
-			at(l, p.x, p.y, p.z) = '#';
-		break;
+			if (p.y < l->h-1 && at(l, p.x, p.y+1, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+			break;
 	}
 }
 
+/* Opens up dungeon piece connection point.
+ *
+ * l : ptr to dungeon level object
+ * p : level coords of connection point tile
+ * d : connection point direction
+ * door : non-zero if a door should be installed instead of usual floor
+ *
+ * ret : nothing
+ */
 void openup_connection(level_t *l, coords_t p, dir_t d, char door) {
 	if (!is_floor(at(l, p.x, p.y, p.z)))
 		at(l, p.x, p.y, p.z) = door ? '+' : '.';
 
-	switch(d)
-	{
-	case NORTH:
-	case SOUTH:
-		if (p.x > 0 && at(l, p.x-1, p.y, p.z) == ' ')
-			at(l, p.x, p.y, p.z) = '#';
-		if (p.x < l->w-1 && at(l, p.x+1, p.y, p.z) == ' ')
-			at(l, p.x, p.y, p.z) = '#';
-		break;
-	case EAST:
-	case WEST:
-		if (p.y > 0 && at(l, p.x, p.y-1, p.z) == ' ')
-			at(l, p.x, p.y, p.z) = '#';
-		if (p.y < l->h-1 && at(l, p.x, p.y+1, p.z) == ' ')
-			at(l, p.x, p.y, p.z) = '#';
-		break;
+	switch(d) {
+		case NORTH:
+		case SOUTH:
+			if (p.x > 0 && at(l, p.x-1, p.y, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+			if (p.x < l->w-1 && at(l, p.x+1, p.y, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+			break;
+		case EAST:
+		case WEST:
+			if (p.y > 0 && at(l, p.x, p.y-1, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+			if (p.y < l->h-1 && at(l, p.x, p.y+1, p.z) == ' ')
+				at(l, p.x, p.y, p.z) = '#';
+			break;
 	}
 }
 
-/* Attempts to queue a new dungeon piece at specified position
- * Closes it off if fails */
+/*
+ * Attempts to queue a new dungeon piece for construction from specified
+ * position.
+ *
+ * l : ptr to dungeon level object
+ * pos : specified level position
+ * d : required dungeon piece orientation
+ * parent : ptr to the dungeon piece that new piece will be connected to
+ * pieces : list of already-present dungeon pieces
+ * bo : list of dungeon pieces to be built
+ * parts : array of available dungeon parts
+ *
+ * ret : nothing
+ */
 void queue_piece(level_t *l, coords_t pos, dir_t d, dg_piece_t *parent,
 		dg_list_t *pieces, dg_list_t *bo, dg_parts_array_t *parts) {
+
 	dg_gen_part_t *t = parent->type;
-	/* anchor coordinates of queued piece */
+	// Anchor coordinates of queued piece.
 	coords_t anchor = (coords_t) {
 		pos.x + dir_offsets[3*d],
 		pos.y + dir_offsets[3*d+1],
@@ -508,14 +621,16 @@ void queue_piece(level_t *l, coords_t pos, dir_t d, dg_piece_t *parent,
 
 	dg_piece_t *o = point_occupied(l, anchor, pieces);
 
-	/* if there is no piece right beyond the possible connection, 
-	 * we try to build one */
+	// If there is no piece right beyond the possible connection, we try to
+	// build one.
 	if (o == NULL) {
 		dg_piece_t *next = select_piece(l, anchor, d, pieces, parts);
-		/* if we found a suitable dungeon part, and we have a build order list,
-		 * then we actually queue it */
+		// If suitable dungeon part is found, it is queued unless build order
+		// list is not passed
 		if (next && bo && parts) {
-			/* corridors can't have 4589 doors */
+			// Only rooms can have doors.
+			// If corridors had them, it would be extremely annoying to open
+			// them every 2-5 tiles
 			if (t->class != GEN_CORRIDOR) {
 				openup_connection(l, pos, d, '+');
 			}
@@ -528,17 +643,18 @@ void queue_piece(level_t *l, coords_t pos, dir_t d, dg_piece_t *parent,
 			append_list(next, bo);
 			if (next->type->class == GEN_ROOM) room_count++;
 		} else {
-			/* otherwise we just close up the connection point */
+			// Otherwise the connection point is closed off
 			closeoff_connection(l, pos, d);
 		}
 	} else {
-		/* there is a piece, we will try to open up a passage 
-		 * to reduce maze-likeness of the dungeon */
+		// There is a piece, we will try to open up a passage
+		// to make the dungeon more varied
 
-		/* no operations on queued buildings */
+		// Can't edit dungeon pieces that are not built yet
 		if (!(o->flags & DG_FLAGS_BUILT)) return;
 
-		/* if occupied tile is in corner of that piece, we do nothing */
+		// If the occupied tile is in corner of that piece, then do nothing.
+		// Such passages would look very ugly in case of rectangular rooms
 		if ((anchor.x == o->pos.x || anchor.x == o->pos.x + o->width-1) &&
 			(anchor.y == o->pos.y || anchor.y == o->pos.y + o->height-1) &&
 			(anchor.z == o->pos.z || anchor.z == o->pos.z + o->depth-1)) {
@@ -546,21 +662,22 @@ void queue_piece(level_t *l, coords_t pos, dir_t d, dg_piece_t *parent,
 			return;
 		}
 
-		/* if it's a wall (aka its not an already existing passage)
-		 * check if there is open space beyond it */
+		// If it is a wall (e.g. it is not an already existing passage),
+		// check if there is open space beyond it.
 		if (at(l, anchor.x, anchor.y, anchor.z) == '#') {
-			/* the tile beyond the wall */
+			// The tile beyond the wall
 			coords_t pt = (coords_t) {
 				anchor.x + dir_offsets[3*d],
 				anchor.y + dir_offsets[3*d+1],
 				anchor.z + dir_offsets[3*d+2]
 			};
 
-			if (!VALID_COORDS(l, pt) ||
-				!is_floor(at(l, pt.x, pt.y, pt.z))) {
+			if (!VALID_COORDS(l, pt) || !is_floor(at(l, pt.x, pt.y, pt.z))) {
 				return;
 			}
 
+			// There is open space, if it is not a part of some doorway
+			// then we can finally open a new passage.
 			if (!doorway_scan(l, anchor, d)) {
 				at(l, pos.x, pos.y, pos.z) = '.';
 				at(l, anchor.x, anchor.y, anchor.z) = '.';
@@ -571,40 +688,58 @@ void queue_piece(level_t *l, coords_t pos, dir_t d, dg_piece_t *parent,
 	}
 }
 
+/*
+ * Builds specified dungeon piece on the level. Also queues new dungeon pieces
+ * connected to it.
+ *
+ * l : ptr to dungeon level object
+ * p : ptr to the dungeon piece
+ * pieces : list of already-present dungeon pieces
+ * bo : list of dungeon pieces to be built
+ * parts : list of available dungeon parts
+ *
+ * ret : nothing
+ */
 void build_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces, dg_list_t *bo,
 		dg_parts_array_t* parts) {
-	static int count = 0;
-	size_t doff = 0;	/* depth offset for internal map selection */
+
+	static int count = 0;   // counter for built pieces
+	size_t doff = 0;        // depth offset for internal map selection
 	dg_gen_part_t *t = p->type;
 	char ** bp = p->type->data;
 	
 	count++;
 	
 	if (t->gen_type == GEN_STATIC) {
-		/* no guarantees that the piece fits in the level.
-		 * select_piece() should check that */
 		for (int k = 0; k < p->depth; ++k) {
 			doff = p->type->height * k;
 			for (int j = 0; j < p->height; ++j) {
 				for (int i = 0; i < p->width; ++i) {
 					switch(p->dir) {
-					case NORTH:
-						at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k) = bp[doff + j][i];
-						break;
-					case EAST:
-						at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k) = bp[doff + p->width-1 - i][j];
-						break;
-					case SOUTH:
-						at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k) = bp[doff + p->height-1 - j][p->width-1 - i];
-						break;
-					case WEST:
-						at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k) = bp[doff + i][p->height-1 - j];
-						break;
+						case NORTH:
+							// Does not fit into 80 chars sadly
+							at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k)
+								= bp[doff + j][i];
+							break;
+						case EAST:
+							at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k)
+								= bp[doff + p->width-1 - i][j];
+							break;
+						case SOUTH:
+							at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k)
+								= bp[doff + p->height-1 - j][p->width-1 - i];
+							break;
+						case WEST:
+							at(l, p->pos.x+i, p->pos.y+j, p->pos.z+k)
+								= bp[doff + i][p->height-1 - j];
+							break;
 					}
 				}
 			}
 		}
 
+		// If anchor tile is not on the sides, then it is a staircase, not an
+		// ordinary passage.
 		if (p->anchor.x != p->pos.x && p->anchor.y != p->pos.y &&
 			p->anchor.x != p->pos.x+p->width-1 && p->anchor.y != p->pos.y+p->height-1) {
 			at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '<';
@@ -612,12 +747,12 @@ void build_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces, dg_list_t *bo,
 			at(l, p->anchor.x, p->anchor.y, p->anchor.z) = '.';
 		}
 
-		/* we try to queue up more pieces for every possible connection
-		 * or at least close them off */
+		// Try to queue up more dungeon pieces for every possible connection.
+		// If it's not possible queue_piece() will close them off.
 		for (int i = 0; i < t->max_conns; ++i) {
 			dir_t d = get_conn_dir(p, i);
 
-			/* converting connection internal piece coords into level coords */
+			// converting connection internal piece coords into level coords
 			coords_t lc = psm2l(p, t->conns[i]);
 			lc.x += p->pos.x;
 			lc.y += p->pos.y;
@@ -629,43 +764,52 @@ void build_piece(level_t *l, dg_piece_t *p, dg_list_t *pieces, dg_list_t *bo,
 	p->flags |= DG_FLAGS_BUILT;
 }
 
-/*	Generates dungeon using supplied level data and array of upstairs coords
-	l :	level info & data
-	stairs : array of stairs coords
-	stairs_count : length of stairs array
-	max_rooms : maximum number of rooms
-	max_pieces : maximum number of dungeon pieces */
+/*
+ * Generates dungeon using level data and array of upstairs level positions.
+ *
+ * l : level info & data
+ * stairs : array of stairs coords
+ * stairs_count : length of stairs array
+ * max_rooms : maximum number of rooms
+ * max_pieces : maximum number of dungeon pieces
+ *
+ * ret : nothing
+ */
 void gen_dungeon(level_t *l, coords_t *stairs, size_t stairs_count,
 		int max_rooms, int max_pieces) {
 	dg_list_t pieces = 	(dg_list_t) { NULL, NULL, 0 };
 	dg_list_t build_order = (dg_list_t) { NULL, NULL, 0 };
 	dg_list_t next_bo = (dg_list_t) { NULL, NULL, 0 };
 	dg_parts_array_t parts = load_gen_parts();
+	// Dungeon parts that can have an upward staircase.
 	dg_parts_array_t entrance_parts = load_starting_parts(parts);
 
 	dg_piece_t *start;
 
-	/* select all starting pieces for construction */
+	// Select all starting pieces for construction.
 	for (size_t i = 0; i < stairs_count; ++i) {
 		int tries = 0;
 		do {
 			start = select_piece(l, stairs[i], UP, &pieces, &entrance_parts);
-			/* with extremely small maps the algorithm will fail to start */
+
+			// With extremely small maps or very close stairs positions
+			// the algorithm will fail to start.
 		} while (start == NULL && tries++ < 1000);
 
 		if (start == NULL) {
-			fprintf(stderr, "failed to build a starting piece with upstairs at (%d, %d, %d) after 1000 tries.\n", stairs[i].x, stairs[i].y, stairs[i].z);
+			fprintf(stderr, "failed to build a starting piece with upstairs at"
+				"(%d, %d, %d) after 1000 tries.\n", stairs[i].x, stairs[i].y,
+				stairs[i].z);
 			exit(EXIT_FAILURE);
 		}
 
 		project_piece(l, start, &pieces);
 		append_list(start, &build_order);
-		//build_piece(l, start, &pieces, &build_order, &parts);
 	}
 
-	/* then we continue to queue, and then build pieces 
-	 * until we hit the piece limit or it's not possible
-	 * to build any more pieces (the build order list is exhausted/empty) */
+	// Algorithm main loop: queue, and then build pieces
+	// until the piece limit is hit or it's not possible to build any more
+	// dungeon pieces (the build order list is empty).
 	while (pieces.count < max_pieces && room_count < max_rooms
 		&& build_order.count > 0) {
 		for (dg_list_node_t* i = build_order.first; i; i = i->next) {
@@ -676,7 +820,7 @@ void gen_dungeon(level_t *l, coords_t *stairs, size_t stairs_count,
 		next_bo = (dg_list_t) { NULL, NULL, 0 };
 	}
 
-	/* building leftover pieces without queueing up more */
+	// Build leftover dungeon pieces without queueing up more.
 	for(dg_list_node_t *i = build_order.first; i; i = i->next) {
 		build_piece(l, (dg_piece_t*)i->who, &pieces, NULL, NULL);
 	}
@@ -692,20 +836,21 @@ int main(int argc, char* argv[]) {
 		return EXIT_FAILURE;
 	}
 
-	pc = atoi(argv[1]);
-	rc = atoi(argv[2]);
+	pc = atoi(argv[1]);	// max dungeon pieces
+	rc = atoi(argv[2]);	// max rooms
 
 	if ((argc - 3) % 2 != 0) {
 		fprintf(stderr, "mismatching starting piece coords\n");
 		return EXIT_FAILURE;
 	}
 
-	int spcc = (argc - 3) / 2;
+	int spcc = (argc - 3) / 2;	// number of stairs positions passed
 	coords_t *spc = malloc(spcc * sizeof(coords_t));
 
 	for (int i = 0; i < spcc; ++i) {
 		spc[i].x = atoi(argv[3 + 2*i]);
 		spc[i].y = atoi(argv[3 + 2*i + 1]);
+		spc[i].z = 0;	// start at the lowest depth
 	}
 
 	level_t *l = read_level(0);

@@ -1,3 +1,4 @@
+// vim: sw=4 ts=4 et :
 #pragma once
 
 #include "gen_underground.h"

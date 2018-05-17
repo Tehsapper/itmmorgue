@@ -1,9 +1,11 @@
+// vim: sw=4 ts=4 et :
 #pragma once
 
 #include <sys/types.h>
-/* these ought to be somewhere else */
+
 #define min(a, b) ((a)<(b)?(a):(b))
 
+// Macroses to retrieve info from level
 #define at(l, x, y, z) (l)->map[(x) + (y)*((l)->w + 1) + (z)*(((l)->w + 1) * (l)->h + 1)]
 #define room_at(l, x, y, z) ((struct dg_piece**)((l)->roommap))[(x) + (y)*((l)->w + 1) + (z)*(((l)->w + 1) * (l)->h + 1)]
 #define zone_at(l, x, y) (l)->zone_info.map[(x) + (y)*((l)->w + 1)]
@@ -24,11 +26,10 @@ typedef struct coords
 	int x, y, z;
 } coords_t;
 
-/* zone = separated open space */
+// Zone = separated open space
 typedef struct zone
 {
-	/* anchor point */
-	struct coords at;
+	struct coords at;  // anchor point
 	long size;
 } zone_t;
 
@@ -41,10 +42,10 @@ typedef struct zone_info
 
 typedef struct level
 {
-	char *map;
-	int h, w, d;
+	char *map;              // 3d symbol map
+	int h, w, d;            // Dimensions
 	zone_info_t zone_info;
-	void* roommap;
+	void* roommap;          // 3d room info map
 } level_t;
 
 void init_level(level_t* l);
