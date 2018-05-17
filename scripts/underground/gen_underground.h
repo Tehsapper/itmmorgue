@@ -46,6 +46,7 @@ typedef struct level
 	int h, w, d;            // Dimensions
 	zone_info_t zone_info;
 	void* roommap;          // 3d room info map
+	size_t size;            // Size of map
 } level_t;
 
 void init_level(level_t* l);

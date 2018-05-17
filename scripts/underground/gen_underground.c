@@ -12,6 +12,7 @@ void init_level(level_t *l) {
 	l->h = 0;
 	l->w = 0;
 	l->d = 0;
+	l->size = 0;
 }
 
 void deinit_level(level_t* l) {
@@ -30,6 +31,7 @@ void copy_level(level_t *a, level_t *b)
 	b->h = a->h;
 	b->w = a->w;
 	b->d = a->d;
+	b->size = a->size;
 }
 
 void add_zone(level_t *l, coords_t at)
@@ -48,9 +50,10 @@ void add_zone(level_t *l, coords_t at)
  */
 level_t* read_level(int fd)
 {
-	const ssize_t bsize = 4096;
+	const size_t bsize = 4096;
 	char* data = malloc(bsize);
-	ssize_t rb = 0, size = 0, i, j;
+	ssize_t rb = 0;
+	size_t size = 0, i, j;
 	level_t *result;
 
 	if (data == NULL) return NULL;
@@ -62,10 +65,10 @@ level_t* read_level(int fd)
 			free(data);
 			return NULL;
 		}
-		size += rb;
+		size += (size_t)rb;
 		data = realloc(data, size + bsize);
 		if(data == NULL) return NULL;
-	} while(rb == bsize);
+	} while((size_t)rb == bsize);
 
 	data = realloc(data, size + 1);
 
@@ -77,17 +80,18 @@ level_t* read_level(int fd)
 	// Determining level width
 	// Z-levels are separated by a single newline
 	for (i = 0; i < size && data[i] != '\n'; ++i);
-	for (j = 0; j < size && data[j * (i+1)] != '\n'; ++j)
+	for (j = 0; j < size && data[j * (i+1)] != '\n'; ++j);
 	result->w = i;
 	result->h = j;
 	// Determining level depth
 	result->d = (size / ((i+1) * j + 1));
+	result->size = size + 1;
 
 	result->zone_info.zones = NULL;
 	result->zone_info.map = NULL;
 	result->zone_info.count = 0;
-	fprintf(stderr, "level %d x %d x %d, size %lu, rsize %lu\n", result->w,
-			result->h, result->d, size+1, sizeof(void*) * (size+1));
+	fprintf(stderr, "level %d x %d x %d, size %zu\n", result->w,
+			result->h, result->d, result->size);
 	return result;
 }
 
@@ -113,5 +117,12 @@ void zone_flood_fill(level_t *l, coords_t c, int zone)
 
 void write_level(level_t *l, int fd)
 {
-	dprintf(fd, "%s\n", l->map);
+	//no posix 2008, sad!
+	//dprintf(fd, "%s\n", l->map);
+	size_t written = 0;
+	do {
+		ssize_t bytes = write(fd, l->map + written, l->size-written);
+		if(bytes >= 0) written += bytes;
+		else return;
+	} while(written < l->size);
 }
