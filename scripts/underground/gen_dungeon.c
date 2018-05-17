@@ -123,7 +123,7 @@ dg_gen_part_t* load_static_gen_part(const char *filename) {
 	r->gen_fptr = NULL;
 	r->build_fptr = NULL;
 
-	if (fscanf(f, "%d%d%d%d%d%ld%lu", &r->width, &r->height, &r->depth, 
+	if (fscanf(f, "%d%d%d%d%d%zd%zu", &r->width, &r->height, &r->depth, 
 			(int*)&r->class, &r->weight, &r->max_count, &r->max_conns) != 7) {
 		goto rip;
 	}
@@ -407,7 +407,7 @@ dg_parts_array_t load_starting_parts(dg_parts_array_t from) {
 		}
 	}
 
-	fprintf(stderr, "%ld entrance-capable parts.\n", result.length);
+	fprintf(stderr, "%zd entrance-capable parts.\n", result.length);
 	return result;
 }
 
@@ -832,7 +832,7 @@ void gen_dungeon(level_t *l, coords_t *stairs, size_t stairs_count,
 	for(dg_list_node_t *i = build_order.first; i; i = i->next) {
 		build_piece(l, (dg_piece_t*)i->who, &pieces, NULL, NULL);
 	}
-	fprintf(stderr, "%ld pieces\n", pieces.count);
+	fprintf(stderr, "%zd pieces\n", pieces.count);
 }
 
 int main(int argc, char* argv[]) {
