@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-std=gnu99 -Wall -Wextra -Werror
+CFLAGS=-g -std=gnu99 -Wall -Wextra -Werror
 LDFLAGS=
 
 CAVES_SOURCES=gen_cave.c gen_underground.c
